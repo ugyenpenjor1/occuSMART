@@ -523,6 +523,12 @@ ui <- dashboardPage(
             )
           )
         ),
+        radioButtons(
+          inputId = "grid_shape",
+          label   = "Grid Shape",
+          choices = c("Rectangle" = "TRUE", "Hexagon" = "FALSE"),
+          inline  = TRUE
+        ),
         fluidRow(
           box(
             width = 12,

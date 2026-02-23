@@ -1294,16 +1294,15 @@ server <- function(input, output, session) {
   outputOptions(output, "env_ready", suspendWhenHidden = FALSE)
   
   # Cell size conditional on the area of the polygon
-  # Currently offers square grids
+  # Currently offers square grids or hexagons based on user choice
   shp_grid_id <- reactive({
-    req(map())
+    req(map(), input$grid_shape)
     
     current_crs <- sf::st_crs(map())$proj4string
+    is_square <- as.logical(input$grid_shape)
     
-    # Calculate area
     area_km2 <- units::set_units(sf::st_area(map()), "km^2") |> as.numeric()
     
-    # Choose cell size based on area and CRS
     cell_size <- if (area_km2 < 1000) {
       if (identical(current_crs, "+proj=longlat +datum=WGS84 +no_defs")) {
         0.01
@@ -1318,19 +1317,25 @@ server <- function(input, output, session) {
       }
     }
     
-    # Create grid polygons
+    # Adjust cell size for hexagons
+    cell_size <- if (!is_square) {
+      cell_size * 1.1547
+    } else {
+      cell_size
+    }
+    
     t_grid <- map() |>
       sf::st_make_grid(
-        what = "polygons",
+        what     = "polygons",   # always "polygons" — shape is controlled by square arg
         cellsize = cell_size,
-        crs = current_crs
+        square   = is_square,    # TRUE = rectangles, FALSE = hexagons
+        crs      = current_crs
       ) |>
       sf::st_intersection(map())
     
-    # Assign grid id
     t_grid_id <- sf::st_sf(
       idcell = seq_along(t_grid),
-      geom = t_grid
+      geom   = t_grid
     ) |>
       sf::st_cast("POLYGON")
     
@@ -1344,7 +1349,7 @@ server <- function(input, output, session) {
     # Check CRS
     if (identical(sf::st_crs(shp_grid_id()), sf::st_crs(map()))) {
       # CRS = same, no need for transformation
-      sf::st_intersection(x = shp_grid(), y = map())
+      sf::st_intersection(x = shp_grid_id(), y = map())
     } else {
       # CRS != same, transform
       shp_grid_transformed <- sf::st_transform(
